@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { parseBankSms, ParsedSmsTransaction } from "@/lib/sms/parser";
 import { formatINR } from "@/lib/utils";
 import {
@@ -60,6 +60,22 @@ export function SmsImportModal({ isOpen, onClose, onSuccess }: SmsImportModalPro
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [userId, setUserId] = useState<string>("");
+
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const res = await fetch("/api/auth/profile");
+        const json = await res.json();
+        if (json.success && json.user?.id) {
+          setUserId(json.user.id);
+        }
+      } catch {}
+    }
+    if (isOpen) {
+      loadUser();
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -148,8 +164,8 @@ export function SmsImportModal({ isOpen, onClose, onSuccess }: SmsImportModalPro
   };
 
   const webhookUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/api/webhooks/sms?token=demo`
-    : "http://localhost:3000/api/webhooks/sms?token=demo";
+    ? `${window.location.origin}/api/webhooks/sms?token=${userId || "YOUR_USER_TOKEN"}`
+    : `http://localhost:3000/api/webhooks/sms?token=${userId || "YOUR_USER_TOKEN"}`;
 
   const copyWebhook = () => {
     navigator.clipboard.writeText(webhookUrl);
@@ -398,3 +414,5 @@ export function SmsImportModal({ isOpen, onClose, onSuccess }: SmsImportModalPro
     </div>
   );
 }
+
+
