@@ -1,0 +1,128 @@
+// SpendWise Database Schema (PostgreSQL)
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Category {
+  Food
+  Transport
+  Shopping
+  Bills
+  Entertainment
+  Subscriptions
+  Healthcare
+  Rent
+  Education
+  Travel
+  Groceries
+  Other
+}
+
+enum TransactionType {
+  debit
+  credit
+}
+
+enum PaymentMethod {
+  UPI
+  Card
+  NetBanking
+  Cash
+}
+
+enum TransactionSource {
+  manual
+  csv
+}
+
+model User {
+  id               String            @id // Matches Supabase Auth UUID
+  email            String            @unique
+  name             String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  financialProfile FinancialProfile?
+  transactions     Transaction[]
+  conversations    AIConversation[]
+
+  @@map("users")
+}
+
+model FinancialProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  monthlySalary      Float    // Net take-home salary in INR
+  salaryDate         Int      // Day of month (1 - 31)
+  currentBalance     Float    @default(0) // Available liquid balance
+  monthlySavingsGoal Float    @default(0) // Protected upfront savings target
+  upcomingEssentials Float    @default(0) // Committed bills/rent/EMIs before next payday
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+  @@map("financial_profiles")
+}
+
+model Transaction {
+  id            String            @id @default(cuid())
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount        Float             // Transaction amount in INR (positive number)
+  merchant      String?           // Cleaned merchant/entity name (e.g. Swiggy, Uber)
+  description   String            // Raw transaction narrative
+  category      Category          @default(Other)
+  type          TransactionType   @default(debit)
+  paymentMethod PaymentMethod     @default(UPI)
+  date          DateTime          // Date and time of transaction
+  source        TransactionSource @default(manual)
+  isEssential   Boolean           @default(false) // Flags fixed committed expenses vs flexible
+
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, category])
+  @@map("transactions")
+}
+
+model AIConversation {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?     @default("Financial Coach Session")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  messages  AIMessage[]
+
+  @@index([userId])
+  @@map("ai_conversations")
+}
+
+model AIMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role           String         // user | assistant | system
+  content        String
+  metadata       Json?          // Snapshot of precomputed financial context
+
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId])
+  @@map("ai_messages")
+}

@@ -1,0 +1,21 @@
+date,description,amount,payment_method,category
+2026-11-01,House Rent Payment to Landlord,18000,NetBanking,Rent
+2026-11-02,BESCOM Electricity Bill,2500,UPI,Bills
+2026-11-03,Blinkit Instant Grocery Delivery,1840,UPI,Groceries
+2026-11-04,Uber Ride to Office,320,UPI,Transport
+2026-11-05,Chai Point Cutting Chai and Samosa,90,UPI,Food
+2026-11-06,Swiggy Lunch Bowl,280,UPI,Food
+2026-11-07,Netflix Premium Subscription,1499,Card,Subscriptions
+2026-11-07,Spotify Family Plan,899,Card,Subscriptions
+2026-11-08,Zepto Quick Essentials,640,UPI,Groceries
+2026-11-09,Uber Ride to Client Meeting,410,UPI,Transport
+2026-11-10,Swiggy Gourmet Dinner with Friends,1650,UPI,Food
+2026-11-11,Tea Stall Snacks,45,UPI,Food
+2026-11-12,Zomato Late Night Delivery,520,UPI,Food
+2026-11-13,HPCL Petrol Pump Fuel,1500,Card,Transport
+2026-11-14,Apollo Pharmacy Cold and Cough Medicine,480,Card,Healthcare
+2026-11-15,Amazon India Ergonomic Mouse,1299,Card,Shopping
+2026-11-16,Airtel Broadband Fiber Bill,1179,UPI,Bills
+2026-11-17,BookMyShow PVR Movie Tickets,760,UPI,Entertainment
+2026-11-18,Local Fruit Vendor,180,UPI,Groceries
+2026-11-19,Tapri Chai and Biscuits,55,UPI,Food
