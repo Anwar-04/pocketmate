@@ -11,10 +11,7 @@ import { getCachedData, setCachedData } from "@/lib/cache/memoryCache";
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
-    const res = NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    res.cookies.delete("spendwise_session");
-    res.cookies.set("spendwise_session", "", { path: "/", maxAge: 0 });
-    return res;
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
   const cacheKey = `dashboard:${user.id}`;

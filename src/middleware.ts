@@ -92,6 +92,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Redirect authenticated users from /login to target or /dashboard
+  if (pathname === "/login" && isAuthenticated) {
+    const redirectParam = request.nextUrl.searchParams.get("redirect");
+    const target = redirectParam && redirectParam.startsWith("/") && redirectParam !== "/login"
+      ? redirectParam
+      : "/dashboard";
+    const url = request.nextUrl.clone();
+    url.pathname = target;
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   return response;
 }
 
@@ -102,5 +114,6 @@ export const config = {
     "/insights/:path*",
     "/coach/:path*",
     "/onboarding/:path*",
+    "/login",
   ],
 };

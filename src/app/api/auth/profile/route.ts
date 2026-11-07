@@ -13,17 +13,10 @@ const ProfileSchema = z.object({
   upcomingEssentials: z.number().min(0, "Upcoming essentials cannot be negative").default(0),
 });
 
-function unauthorizedResponse() {
-  const res = NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-  res.cookies.delete("spendwise_session");
-  res.cookies.set("spendwise_session", "", { path: "/", maxAge: 0 });
-  return res;
-}
-
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
-    return unauthorizedResponse();
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -48,7 +41,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) {
-    return unauthorizedResponse();
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
   }
 
   try {

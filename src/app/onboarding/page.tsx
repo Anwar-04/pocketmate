@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { formatINR } from "@/lib/utils";
 import {
   ArrowRight,
@@ -9,52 +10,39 @@ import {
   Loader2,
   ShieldCheck,
   Sparkles,
-  AlertCircle,
 } from "lucide-react";
 
 export default function OnboardingPage() {
+  const router = useRouter();
+
   const [name, setName] = useState("");
-  const [monthlySalary, setMonthlySalary] = useState<number | "">("");
+  const [monthlySalary, setMonthlySalary] = useState<number>(75000);
   const [salaryDate, setSalaryDate] = useState<number>(1);
-  const [currentBalance, setCurrentBalance] = useState<number | "">("");
-  const [monthlySavingsGoal, setMonthlySavingsGoal] = useState<number | "">("");
-  const [upcomingEssentials, setUpcomingEssentials] = useState<number | "">("");
+  const [currentBalance, setCurrentBalance] = useState<number>(21500);
+  const [monthlySavingsGoal, setMonthlySavingsGoal] = useState<number>(15000);
+  const [upcomingEssentials, setUpcomingEssentials] = useState<number>(13000);
 
   const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadInitialData() {
+    async function loadUserName() {
       try {
         const res = await fetch("/api/auth/profile");
         const json = await res.json();
-        if (json.success) {
-          if (json.user?.name) {
-            setName(json.user.name);
-          }
-          if (json.profile) {
-            if (json.profile.monthlySalary) setMonthlySalary(json.profile.monthlySalary);
-            if (json.profile.salaryDate) setSalaryDate(json.profile.salaryDate);
-            if (json.profile.currentBalance !== undefined) setCurrentBalance(json.profile.currentBalance);
-            if (json.profile.monthlySavingsGoal !== undefined) setMonthlySavingsGoal(json.profile.monthlySavingsGoal);
-            if (json.profile.upcomingEssentials !== undefined) setUpcomingEssentials(json.profile.upcomingEssentials);
-          }
+        if (json.success && json.user?.name) {
+          setName(json.user.name);
         }
-      } catch (err) {
-        console.warn("Could not load existing profile:", err);
-      } finally {
-        setPageLoading(false);
-      }
+      } catch {}
     }
-    loadInitialData();
+    loadUserName();
   }, []);
 
   // Compute live budget preview
   const liveBudget = useMemo(() => {
-    const salary = typeof monthlySalary === "number" ? monthlySalary : 0;
-    const essentials = typeof upcomingEssentials === "number" ? upcomingEssentials : 0;
-    const savings = typeof monthlySavingsGoal === "number" ? monthlySavingsGoal : 0;
+    const salary = Number(monthlySalary) || 0;
+    const essentials = Number(upcomingEssentials) || 0;
+    const savings = Number(monthlySavingsGoal) || 0;
 
     const flexibleMoney = salary - essentials - savings;
     const simulatedDaysRemaining = 12;
@@ -64,7 +52,7 @@ export default function OnboardingPage() {
     return {
       flexibleMoney,
       safeDailySpend,
-      isValid: salary > 0 && flexibleMoney >= 0,
+      isValid: flexibleMoney >= 0,
       daysRemaining: simulatedDaysRemaining,
     };
   }, [monthlySalary, upcomingEssentials, monthlySavingsGoal]);
@@ -72,27 +60,6 @@ export default function OnboardingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError("Please enter your full name.");
-      return;
-    }
-
-    const numSalary = typeof monthlySalary === "number" ? monthlySalary : 0;
-    if (numSalary <= 0) {
-      setError("Please enter your monthly net salary.");
-      return;
-    }
-
-    const numEssentials = typeof upcomingEssentials === "number" ? upcomingEssentials : 0;
-    const numSavings = typeof monthlySavingsGoal === "number" ? monthlySavingsGoal : 0;
-
-    if (numSalary < numEssentials + numSavings) {
-      setError("Committed essentials and savings goal cannot exceed your monthly salary.");
-      return;
-    }
-
     setLoading(true);
 
     try {
@@ -100,36 +67,32 @@ export default function OnboardingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: trimmedName,
-          monthlySalary: numSalary,
-          salaryDate: Number(salaryDate) || 1,
-          currentBalance: typeof currentBalance === "number" ? currentBalance : 0,
-          monthlySavingsGoal: numSavings,
-          upcomingEssentials: numEssentials,
+          name,
+          monthlySalary: Number(monthlySalary),
+          salaryDate: Number(salaryDate),
+          currentBalance: Number(currentBalance),
+          monthlySavingsGoal: Number(monthlySavingsGoal),
+          upcomingEssentials: Number(upcomingEssentials),
         }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to save profile. Please try again.");
+      if (res.status === 401) {
+        window.location.href = "/login?redirect=/onboarding";
+        return;
       }
 
-      // Hard redirect to dashboard
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || "Failed to save profile");
+      }
+
       window.location.href = "/dashboard";
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong saving your profile.");
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
       setLoading(false);
     }
   };
-
-  if (pageLoading) {
-    return (
-      <div className="min-h-screen bg-[#0B0F14] flex items-center justify-center text-slate-400">
-        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#0B0F14] py-12 px-4 sm:px-6 lg:px-8 text-slate-100">
@@ -153,9 +116,8 @@ export default function OnboardingPage() {
           {/* Main Configuration Form */}
           <div className="lg:col-span-7 bg-[#131922] backdrop-blur-xl p-6 sm:p-8 rounded-3xl border border-[#243041] shadow-2xl">
             {error && (
-              <div className="mb-6 p-4 rounded-2xl bg-rose-950/70 border border-rose-800 text-rose-300 text-xs flex items-start gap-3">
-                <AlertCircle className="h-4 w-4 text-rose-400 flex-shrink-0 mt-0.5" />
-                <div className="leading-relaxed">{error}</div>
+              <div className="mb-6 p-3.5 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs">
+                {error}
               </div>
             )}
 
@@ -169,8 +131,7 @@ export default function OnboardingPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Anwar Hussain"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
 
@@ -189,9 +150,8 @@ export default function OnboardingPage() {
                       min={1000}
                       step={500}
                       value={monthlySalary}
-                      onChange={(e) => setMonthlySalary(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="e.g. 75000"
-                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm font-bold text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+                      onChange={(e) => setMonthlySalary(Number(e.target.value))}
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm font-bold text-white focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
                     />
                   </div>
                 </div>
@@ -239,9 +199,8 @@ export default function OnboardingPage() {
                     type="number"
                     min={0}
                     value={currentBalance}
-                    onChange={(e) => setCurrentBalance(e.target.value === "" ? "" : Number(e.target.value))}
-                    placeholder="e.g. 25000"
-                    className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+                    onChange={(e) => setCurrentBalance(Number(e.target.value))}
+                    className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500">
@@ -268,9 +227,8 @@ export default function OnboardingPage() {
                       min={0}
                       step={500}
                       value={monthlySavingsGoal}
-                      onChange={(e) => setMonthlySavingsGoal(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="e.g. 15000"
-                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm text-emerald-400 font-bold placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                      onChange={(e) => setMonthlySavingsGoal(Number(e.target.value))}
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm text-emerald-400 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
                     />
                   </div>
                   <p className="mt-1 text-[11px] text-slate-500">
@@ -291,9 +249,8 @@ export default function OnboardingPage() {
                       min={0}
                       step={500}
                       value={upcomingEssentials}
-                      onChange={(e) => setUpcomingEssentials(e.target.value === "" ? "" : Number(e.target.value))}
-                      placeholder="e.g. 12000"
-                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+                      onChange={(e) => setUpcomingEssentials(Number(e.target.value))}
+                      className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
                     />
                   </div>
                   <p className="mt-1 text-[11px] text-slate-500">
@@ -305,10 +262,10 @@ export default function OnboardingPage() {
               <button
                 type="submit"
                 disabled={loading || !liveBudget.isValid}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 transition-all shadow-[0_0_20px_rgba(13,148,136,0.25)] disabled:opacity-50 mt-6 border border-teal-500/30 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 transition-all shadow-[0_0_20px_rgba(13,148,136,0.25)] disabled:opacity-50 mt-6 border border-teal-500/30"
               >
                 {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-white" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
                     <span>Confirm & Launch Dashboard</span>
@@ -350,17 +307,15 @@ export default function OnboardingPage() {
               <div className="space-y-2.5 text-xs font-mono border-t border-[#243041] pt-4">
                 <div className="flex justify-between text-slate-400">
                   <span>Monthly Salary:</span>
-                  <span className="text-white font-bold">
-                    {formatINR(typeof monthlySalary === "number" ? monthlySalary : 0)}
-                  </span>
+                  <span className="text-white font-bold">{formatINR(monthlySalary)}</span>
                 </div>
                 <div className="flex justify-between text-rose-400">
                   <span>− Committed Essentials:</span>
-                  <span>− {formatINR(typeof upcomingEssentials === "number" ? upcomingEssentials : 0)}</span>
+                  <span>− {formatINR(upcomingEssentials)}</span>
                 </div>
                 <div className="flex justify-between text-emerald-400">
                   <span>− Savings Goal (Protected):</span>
-                  <span>− {formatINR(typeof monthlySavingsGoal === "number" ? monthlySavingsGoal : 0)}</span>
+                  <span>− {formatINR(monthlySavingsGoal)}</span>
                 </div>
                 <div className="border-t border-dashed border-[#243041] pt-2 flex justify-between text-sm font-bold text-white">
                   <span>= Flexible Buffer:</span>

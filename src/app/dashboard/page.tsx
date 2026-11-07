@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
 import { HeroSafeSpendCard } from "@/components/dashboard/HeroSafeSpendCard";
 import { StatCards } from "@/components/dashboard/StatCards";
@@ -12,7 +11,7 @@ import { QuickCoachWidget } from "@/components/dashboard/QuickCoachWidget";
 import { SmsImportModal } from "@/components/transactions/SmsImportModal";
 import { CycleReportModal } from "@/components/reports/CycleReportModal";
 import { DashboardData } from "@/types/financial";
-import { Calendar, Clock, Loader2, AlertCircle, RefreshCw, Zap, FileText, LogIn } from "lucide-react";
+import { Calendar, Clock, Loader2, AlertCircle, RefreshCw, Zap, FileText } from "lucide-react";
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -27,8 +26,7 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/dashboard");
       if (res.status === 401) {
-        setError("Your session has expired. Please sign in again.");
-        setLoading(false);
+        window.location.href = "/login";
         return;
       }
       const json = await res.json();
@@ -86,29 +84,17 @@ export default function DashboardPage() {
 
         {/* Error State */}
         {error && !loading && (
-          <div className="p-8 bg-rose-950/40 border border-rose-900/80 rounded-3xl text-center space-y-4 max-w-md mx-auto my-12">
-            <AlertCircle className="h-10 w-10 text-rose-400 mx-auto" />
-            <h3 className="text-base font-bold text-rose-200">
-              {error.includes("session") ? "Session Expired" : "Unable to load dashboard"}
-            </h3>
-            <p className="text-xs text-rose-400 max-w-sm mx-auto leading-relaxed">{error}</p>
-            {error.includes("session") ? (
-              <a
-                href="/login"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-all shadow-[0_0_15px_rgba(13,148,136,0.3)]"
-              >
-                <LogIn className="h-4 w-4" />
-                <span>Sign In to SpendWise</span>
-              </a>
-            ) : (
-              <button
-                onClick={() => fetchDashboardData(false)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-500 transition-colors"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                <span>Retry</span>
-              </button>
-            )}
+          <div className="p-6 bg-rose-950/40 border border-rose-900 rounded-2xl text-center space-y-3">
+            <AlertCircle className="h-8 w-8 text-rose-400 mx-auto" />
+            <h3 className="text-sm font-bold text-rose-200">Unable to load dashboard</h3>
+            <p className="text-xs text-rose-400 max-w-sm mx-auto">{error}</p>
+            <button
+              onClick={() => fetchDashboardData(false)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-500 transition-colors"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Retry</span>
+            </button>
           </div>
         )}
 
