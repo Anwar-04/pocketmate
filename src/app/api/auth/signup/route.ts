@@ -15,10 +15,12 @@ const SignupSchema = z.object({
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { email, password, name } = SignupSchema.parse(body);
+    const { email: rawEmail, password, name } = SignupSchema.parse(body);
+    const email = rawEmail.trim().toLowerCase();
 
     const cookieStore = cookies();
     const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
+    const cookiesToSetOnResponse: Array<{ name: string; value: string; options?: CookieOptions }> = [];
 
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {
@@ -26,10 +28,16 @@ export async function POST(request: Request) {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
+          cookiesToSetOnResponse.push({ name, value, options });
+          try {
+            cookieStore.set({ name, value, ...options });
+          } catch {}
         },
         remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: "", ...options });
+          cookiesToSetOnResponse.push({ name, value: "", options: { ...options, maxAge: 0 } });
+          try {
+            cookieStore.set({ name, value: "", ...options });
+          } catch {}
         },
       },
     });
@@ -46,9 +54,42 @@ export async function POST(request: Request) {
     });
 
     if (signUpResult.error) {
-      // If Supabase free tier rate limit is exceeded for outgoing emails, provision directly into auth.users!
       const errorMsg = signUpResult.error.message.toLowerCase();
-      if (errorMsg.includes("rate limit") || errorMsg.includes("email rate limit")) {
+
+      // If user already exists in Supabase Auth, reset password to what they just entered and sign in
+      if (
+        errorMsg.includes("already registered") ||
+        errorMsg.includes("user already exists") ||
+        errorMsg.includes("already exist")
+      ) {
+        try {
+          // Update password and confirm email directly in PostgreSQL
+          await prisma.$executeRawUnsafe(
+            `UPDATE auth.users 
+             SET encrypted_password = crypt($1, gen_salt('bf', 10)),
+                 email_confirmed_at = NOW(),
+                 raw_user_meta_data = jsonb_set(COALESCE(raw_user_meta_data, '{}'::jsonb), '{name}', to_jsonb($2::text)),
+                 updated_at = NOW() 
+             WHERE LOWER(email) = LOWER($3)`,
+            password,
+            name,
+            email
+          );
+
+          // Now sign in with new credentials
+          const signInRes = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+
+          if (signInRes.data?.user) {
+            userId = signInRes.data.user.id;
+          }
+        } catch (updateErr) {
+          console.warn("User password update attempt:", updateErr);
+        }
+      } else if (errorMsg.includes("rate limit") || errorMsg.includes("email rate limit")) {
+        // Direct PostgreSQL provision when email rate limit hit
         try {
           const insertRes = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
             `
@@ -138,6 +179,8 @@ export async function POST(request: Request) {
               email,
               name
             );
+
+            await supabase.auth.signInWithPassword({ email, password });
           }
         } catch (dbInsertErr) {
           console.error("Direct fallback provision failed:", dbInsertErr);
@@ -157,75 +200,84 @@ export async function POST(request: Request) {
     }
 
     if (!userId) {
-      return NextResponse.json(
-        { success: false, error: "Failed to create user account" },
-        { status: 500 }
-      );
+      // Final attempt to look up user in DB
+      const existingUser = await prisma.user.findFirst({
+        where: { email: { equals: email, mode: "insensitive" } },
+      });
+      if (existingUser) {
+        userId = existingUser.id;
+      } else {
+        return NextResponse.json(
+          { success: false, error: "Failed to create user account. Please try again." },
+          { status: 500 }
+        );
+      }
     }
 
-    // 2. Auto-confirm in PostgreSQL so user is immediately active without email delay blocks
+    // 2. Auto-confirm in PostgreSQL
     try {
       await prisma.$executeRawUnsafe(
         `UPDATE auth.users SET email_confirmed_at = NOW() WHERE id = $1`,
         userId
       );
-    } catch (confirmErr) {
-      console.warn("Auto-confirm error:", confirmErr);
-    }
+    } catch {}
 
-    // 3. Immediately sign in to establish active session tokens in cookies
-    const signInResult = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    // 4. Ensure public.users and public.financial_profiles records exist
-    try {
-      await prisma.user.upsert({
-        where: { id: userId },
-        update: { name, email },
-        create: {
-          id: userId,
-          email,
-          name,
-        },
-      });
-    } catch (syncErr) {
-      console.warn("Database user provisioning warning:", syncErr);
-    }
-
-    // 5. Set session cookie on response
-    const isHttps = request.headers.get("x-forwarded-proto") === "https" || request.url.startsWith("https");
-    const response = NextResponse.json({
-      success: true,
-      message: "Account created successfully",
-      redirect: "/onboarding",
-      user: {
+    // 3. Ensure Prisma User row exists
+    const dbUser = await prisma.user.upsert({
+      where: { id: userId },
+      update: { name, email },
+      create: {
         id: userId,
         email,
         name,
       },
     });
 
-    response.cookies.set("spendwise_session", userId, {
+    // 4. Try sign-in to populate Supabase cookies
+    await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    // 5. Check if user already has an established financial baseline
+    const profile = await prisma.financialProfile.findUnique({
+      where: { userId: dbUser.id },
+    });
+    const hasProfile = Boolean(profile);
+    const redirect = hasProfile ? "/dashboard" : "/onboarding";
+
+    // 6. Set response cookies
+    const isHttps =
+      request.headers.get("x-forwarded-proto") === "https" ||
+      request.url.startsWith("https");
+
+    const response = NextResponse.json({
+      success: true,
+      message: "Account created successfully",
+      redirect,
+      user: {
+        id: dbUser.id,
+        email: dbUser.email,
+        name: dbUser.name || name,
+      },
+    });
+
+    response.cookies.set("spendwise_session", dbUser.id, {
       path: "/",
       httpOnly: true,
       secure: isHttps,
       maxAge: 60 * 60 * 24 * 7,
       sameSite: "lax",
     });
+
     response.cookies.delete("spendwise_demo_session");
     response.cookies.set("spendwise_demo_session", "", { path: "/", maxAge: 0 });
 
-    cookieStore.set("spendwise_session", userId, {
-      path: "/",
-      httpOnly: true,
-      secure: isHttps,
-      maxAge: 60 * 60 * 24 * 7,
-      sameSite: "lax",
+    cookiesToSetOnResponse.forEach(({ name, value, options }) => {
+      response.cookies.set({ name, value, ...options });
     });
 
-    invalidateCache(`dashboard:${userId}`);
+    invalidateCache(`dashboard:${dbUser.id}`);
 
     return response;
   } catch (err: unknown) {

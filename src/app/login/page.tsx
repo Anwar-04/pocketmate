@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/auth/supabase-client";
-import { ArrowRight, Sparkles, Lock, Mail, User, AlertCircle, Loader2 } from "lucide-react";
+import { ArrowRight, Lock, Mail, User, AlertCircle, Loader2 } from "lucide-react";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -17,6 +17,9 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const emailInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
@@ -149,7 +152,7 @@ function LoginForm() {
                 <div className="w-full border-t border-[#243041]" />
               </div>
               <span className="relative bg-[#131922] px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Or sign in with email
+                Or continue with email
               </span>
             </div>
           </div>
@@ -157,7 +160,7 @@ function LoginForm() {
           {errorMessage && (
             <div className="mb-4 p-3.5 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs flex items-start gap-2">
               <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-rose-400" />
-              <span>{errorMessage}</span>
+              <span className="leading-relaxed">{errorMessage}</span>
             </div>
           )}
 
@@ -175,7 +178,16 @@ function LoginForm() {
                     type="text"
                     required
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        emailInputRef.current?.focus();
+                      }
+                    }}
                     placeholder="e.g. Anwar Hussain"
                     className="block w-full pl-10 pr-3.5 py-2.5 border border-[#243041] rounded-xl text-sm bg-[#0B0F14] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
@@ -192,10 +204,20 @@ function LoginForm() {
                   <Mail className="h-4 w-4" />
                 </div>
                 <input
+                  ref={emailInputRef}
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && mode === "signup") {
+                      e.preventDefault();
+                      passwordInputRef.current?.focus();
+                    }
+                  }}
                   placeholder="name@company.com"
                   className="block w-full pl-10 pr-3.5 py-2.5 border border-[#243041] rounded-xl text-sm bg-[#0B0F14] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
@@ -211,24 +233,33 @@ function LoginForm() {
                   <Lock className="h-4 w-4" />
                 </div>
                 <input
+                  ref={passwordInputRef}
                   type="password"
                   required
                   minLength={6}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errorMessage) setErrorMessage(null);
+                  }}
                   placeholder="••••••••"
                   className="block w-full pl-10 pr-3.5 py-2.5 border border-[#243041] rounded-xl text-sm bg-[#0B0F14] text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
                 />
               </div>
+              {mode === "signup" && (
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Minimum 6 characters. If you already have an account, this will update your password.
+                </p>
+              )}
             </div>
 
             <button
               type="submit"
               disabled={loading || googleLoading}
-              className="w-full mt-2 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 transition-all shadow-[0_0_20px_rgba(13,148,136,0.25)] disabled:opacity-50 border border-teal-500/30"
+              className="w-full mt-2 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 transition-all shadow-[0_0_20px_rgba(13,148,136,0.25)] disabled:opacity-50 border border-teal-500/30 cursor-pointer"
             >
               {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin text-white" />
               ) : (
                 <>
                   <span>{mode === "signin" ? "Sign In" : "Continue to Onboarding"}</span>
@@ -242,10 +273,14 @@ function LoginForm() {
             <button
               type="button"
               onClick={() => {
-                setMode(mode === "signin" ? "signup" : "signin");
+                const nextMode = mode === "signin" ? "signup" : "signin";
+                setMode(nextMode);
                 setErrorMessage(null);
+                try {
+                  window.history.replaceState(null, "", nextMode === "signup" ? "/login?mode=signup" : "/login");
+                } catch {}
               }}
-              className="text-xs font-bold text-teal-400 hover:text-teal-300"
+              className="text-xs font-bold text-teal-400 hover:text-teal-300 cursor-pointer"
             >
               {mode === "signin"
                 ? "Don't have an account? Sign up"
