@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { getSupabaseConfig } from "./supabase-config";
 
 /**
  * Creates a server-side Supabase client with Next.js cookie handling.
@@ -7,8 +8,7 @@ import { cookies } from "next/headers";
  */
 export function createServerSupabaseClient() {
   const cookieStore = cookies();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://bpmrvttzaiqzspmolujg.supabase.co";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_4Ugkm_ForpS-BWUcMeV8lg_rr2k9sXQ";
+  const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {

@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSupabaseConfig } from "./lib/auth/supabase-config";
 
 const PROTECTED_ROUTES = [
   "/dashboard",
@@ -36,8 +37,7 @@ export async function middleware(request: NextRequest) {
 
   // If no spendwise_session exists, verify via Supabase Auth
   if (!hasUserSession && hasAuthTokenCookie) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://bpmrvttzaiqzspmolujg.supabase.co";
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_4Ugkm_ForpS-BWUcMeV8lg_rr2k9sXQ";
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
 
     try {
       const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {

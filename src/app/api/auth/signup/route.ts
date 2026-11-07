@@ -4,6 +4,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { invalidateCache } from "@/lib/cache/memoryCache";
+import { getSupabaseConfig } from "@/lib/auth/supabase-config";
 
 const SignupSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -17,8 +18,7 @@ export async function POST(request: Request) {
     const { email, password, name } = SignupSchema.parse(body);
 
     const cookieStore = cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://bpmrvttzaiqzspmolujg.supabase.co";
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_4Ugkm_ForpS-BWUcMeV8lg_rr2k9sXQ";
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
 
     const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
       cookies: {

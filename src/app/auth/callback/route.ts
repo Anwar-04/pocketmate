@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { invalidateCache } from "@/lib/cache/memoryCache";
+import { getSupabaseConfig } from "@/lib/auth/supabase-config";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -18,8 +19,7 @@ export async function GET(request: Request) {
 
   if (code) {
     const cookieStore = cookies();
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://bpmrvttzaiqzspmolujg.supabase.co";
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "sb_publishable_4Ugkm_ForpS-BWUcMeV8lg_rr2k9sXQ";
+    const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
 
     const cookiesToSetOnResponse: { name: string; value: string; options: CookieOptions }[] = [];
 
