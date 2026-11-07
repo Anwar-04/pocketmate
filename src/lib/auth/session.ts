@@ -63,7 +63,7 @@ function extractUserFromSupabaseCookies(cookieStore: ReturnType<typeof cookies>)
         name: userName,
       };
     }
-  } catch (err) {
+  } catch {
     // Fail silently to next auth method
   }
 
@@ -96,8 +96,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
           name: dbUser.name || dbUser.email.split("@")[0] || "User",
         };
       }
-    } catch {
-      // Fall through to cookie extraction
+    } catch (dbErr) {
+      console.warn("DB user lookup warning in session:", dbErr);
     }
   }
 
@@ -153,18 +153,23 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
       user.email?.split("@")[0] ||
       "User";
 
-    const dbUser = await prisma.user.upsert({
-      where: { id: user.id },
-      update: { email: user.email || "", name: userName },
-      create: {
-        id: user.id,
-        email: user.email || "",
-        name: userName,
-      },
-    });
+    let dbUser: { id: string; email: string; name: string | null } | null = null;
+    try {
+      dbUser = await prisma.user.upsert({
+        where: { id: user.id },
+        update: { email: user.email || "", name: userName },
+        create: {
+          id: user.id,
+          email: user.email || "",
+          name: userName,
+        },
+      });
+    } catch (syncErr) {
+      console.warn("Database user provisioning warning in session:", syncErr);
+    }
 
     try {
-      cookieStore.set("spendwise_session", dbUser.id, {
+      cookieStore.set("spendwise_session", user.id, {
         path: "/",
         httpOnly: true,
         maxAge: 60 * 60 * 24 * 7,
@@ -173,9 +178,9 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     } catch {}
 
     return {
-      id: dbUser.id,
-      email: dbUser.email,
-      name: dbUser.name || userName,
+      id: user.id,
+      email: user.email || "",
+      name: dbUser?.name || userName,
     };
   } catch {
     return null;

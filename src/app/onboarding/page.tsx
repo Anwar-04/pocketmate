@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { formatINR } from "@/lib/utils";
 import {
   ArrowRight,
@@ -10,11 +9,10 @@ import {
   Loader2,
   ShieldCheck,
   Sparkles,
+  AlertCircle,
 } from "lucide-react";
 
 export default function OnboardingPage() {
-  const router = useRouter();
-
   const [name, setName] = useState("");
   const [monthlySalary, setMonthlySalary] = useState<number>(75000);
   const [salaryDate, setSalaryDate] = useState<number>(1);
@@ -67,7 +65,7 @@ export default function OnboardingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
+          name: name.trim(),
           monthlySalary: Number(monthlySalary),
           salaryDate: Number(salaryDate),
           currentBalance: Number(currentBalance),
@@ -76,14 +74,16 @@ export default function OnboardingPage() {
         }),
       });
 
+      const data = await res.json();
+
       if (res.status === 401) {
-        window.location.href = "/login?redirect=/onboarding";
+        setError(data.error || "Your session has expired. Please sign in again.");
+        setLoading(false);
         return;
       }
 
-      const data = await res.json();
       if (!data.success) {
-        throw new Error(data.error || "Failed to save profile");
+        throw new Error(data.error || "Failed to save profile. Please check your inputs.");
       }
 
       window.location.href = "/dashboard";
@@ -116,8 +116,9 @@ export default function OnboardingPage() {
           {/* Main Configuration Form */}
           <div className="lg:col-span-7 bg-[#131922] backdrop-blur-xl p-6 sm:p-8 rounded-3xl border border-[#243041] shadow-2xl">
             {error && (
-              <div className="mb-6 p-3.5 rounded-xl bg-rose-950/80 border border-rose-800 text-rose-300 text-xs">
-                {error}
+              <div className="mb-6 p-4 rounded-2xl bg-rose-950/70 border border-rose-800 text-rose-300 text-xs flex items-start gap-3">
+                <AlertCircle className="h-4 w-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                <div className="leading-relaxed">{error}</div>
               </div>
             )}
 
@@ -131,6 +132,7 @@ export default function OnboardingPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Anwar Hussain"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#243041] bg-[#0B0F14] text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -262,10 +264,10 @@ export default function OnboardingPage() {
               <button
                 type="submit"
                 disabled={loading || !liveBudget.isValid}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 transition-all shadow-[0_0_20px_rgba(13,148,136,0.25)] disabled:opacity-50 mt-6 border border-teal-500/30"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 transition-all shadow-[0_0_20px_rgba(13,148,136,0.25)] disabled:opacity-50 mt-6 border border-teal-500/30 cursor-pointer"
               >
                 {loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
                 ) : (
                   <>
                     <span>Confirm & Launch Dashboard</span>
