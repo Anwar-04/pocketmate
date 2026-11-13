@@ -5,7 +5,7 @@ SpendWise is an AI-powered personal finance web application built for salaried w
 
 ---
 
-## 🚀 Live Demo & Hackathon Fast-Track
+## 🚀 Live Demo 
 
 SpendWise features a **1-click Zero-Dependency Demo Mode** designed for instant evaluation without setting up external bank or database credentials:
 
